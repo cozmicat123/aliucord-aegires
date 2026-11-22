@@ -30,7 +30,17 @@ public class MessageCacheManager {
     private final Context context;
     private final SharedPreferences prefs;
     private final java.util.concurrent.ExecutorService diskExecutor =
-            java.util.concurrent.Executors.newSingleThreadExecutor();
+            new java.util.concurrent.ThreadPoolExecutor(
+                    1,
+                    1,
+                    0L,
+                    java.util.concurrent.TimeUnit.MILLISECONDS,
+                    new java.util.concurrent.LinkedBlockingQueue<>(),
+                    new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());
+
+    public void shutdown() {
+        diskExecutor.shutdown();
+    }
 
     public MessageCacheManager(Context context) {
         this.context = context;

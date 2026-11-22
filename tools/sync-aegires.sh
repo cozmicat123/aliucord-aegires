@@ -16,20 +16,45 @@ cp -r "$AEGIRES_SRC"/. "$DEST"/
 # 1. Drop AegiresApplication (Conscrypt not needed; platform TLS 1.3 verified on-device)
 rm -f "$DEST/AegiresApplication.java"
 
-# 2. Shade OkHttp/Okio references in the 3 files that use them + fix OkHttp 3.12 RequestBody.create arg order
+# 2. Shade OkHttp/Okio across all synced Java files + apply verified host patches
 node -e '
 const fs = require("fs");
+const path = require("path");
 const dest = process.argv[1];
 
-for (const rel of ["api/ApiClient.java", "api/GatewayClient.java", "util/AndroidMedia.java"]) {
-  const p = `${dest}/${rel}`;
-  let s = fs.readFileSync(p, "utf8");
-  s = s.replace(/\bokhttp3\./g, "aegires.okhttp3.").replace(/\bokio\./g, "aegires.okio.");
-  if (rel === "api/ApiClient.java") {
-    const before = "RequestBody.create(jsonBody, JSON)";
-    if (!s.includes(before)) throw new Error("Expected ApiClient RequestBody.create(jsonBody, JSON) not found");
-    s = s.replace(before, "RequestBody.create(JSON, jsonBody)");
+function mustReplace(src, from, to, label) {
+  if (!src.includes(from)) throw new Error("Expected patch target not found: " + label);
+  return src.replace(from, to);
+}
+
+function walkJava(dir, out = []) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) walkJava(p, out);
+    else if (ent.name.endsWith(".java")) out.push(p);
   }
+  return out;
+}
+
+// 2a. Shade all okhttp3/okio references across every Java file
+let shadedCount = 0;
+for (const p of walkJava(dest)) {
+  const orig = fs.readFileSync(p, "utf8");
+  const next = orig
+    .replace(/(?<!aegires\.)\bokhttp3\./g, "aegires.okhttp3.")
+    .replace(/(?<!aegires\.)\bokio\./g, "aegires.okio.");
+  if (next !== orig) {
+    fs.writeFileSync(p, next);
+    shadedCount++;
+  }
+}
+if (shadedCount === 0) throw new Error("No okhttp3/okio references found to shade");
+
+// 2b. Fix OkHttp 3.12 RequestBody.create argument order in ApiClient.java
+{
+  const p = `${dest}/api/ApiClient.java`;
+  let s = fs.readFileSync(p, "utf8");
+  s = mustReplace(s, "RequestBody.create(jsonBody, JSON)", "RequestBody.create(JSON, jsonBody)", "ApiClient.RequestBody.create");
   fs.writeFileSync(p, s);
 }
 
@@ -37,26 +62,71 @@ for (const rel of ["api/ApiClient.java", "api/GatewayClient.java", "util/Android
 {
   const p = `${dest}/util/LinkDialog.java`;
   let s = fs.readFileSync(p, "utf8");
-  const target = "if (!(ctx instanceof Activity)) return;\n        Activity activity = (Activity) ctx;";
-  if (!s.includes(target)) throw new Error("Expected LinkDialog instanceof Activity check not found");
-  s = s.replace(
-    target,
+  s = mustReplace(
+    s,
+    "if (!(ctx instanceof Activity)) return;\n        Activity activity = (Activity) ctx;",
     "Context c = ctx;\n" +
     "        while (c instanceof android.content.ContextWrapper && !(c instanceof Activity)) {\n" +
     "            c = ((android.content.ContextWrapper) c).getBaseContext();\n" +
     "        }\n" +
     "        if (!(c instanceof Activity)) return;\n" +
-    "        Activity activity = (Activity) c;"
+    "        Activity activity = (Activity) c;",
+    "LinkDialog.instanceofActivity"
   );
   fs.writeFileSync(p, s);
 }
 
-// 4. Adapt MainActivity into a ContextThemeWrapper-backed host for Aliucord FragmentProxy
+// 4. Add graceful executor shutdown() to DiskCache.java and MessageCacheManager.java
+{
+  const p = `${dest}/util/DiskCache.java`;
+  let s = fs.readFileSync(p, "utf8");
+  s = mustReplace(
+    s,
+    "    private final ExecutorService io = Executors.newSingleThreadExecutor();",
+    "    private final ExecutorService io =\n" +
+    "            new java.util.concurrent.ThreadPoolExecutor(\n" +
+    "                    1,\n" +
+    "                    1,\n" +
+    "                    0L,\n" +
+    "                    java.util.concurrent.TimeUnit.MILLISECONDS,\n" +
+    "                    new java.util.concurrent.LinkedBlockingQueue<>(),\n" +
+    "                    new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());\n\n" +
+    "    public void shutdown() {\n" +
+    "        io.shutdown();\n" +
+    "    }",
+    "DiskCache.io"
+  );
+  fs.writeFileSync(p, s);
+}
+{
+  const p = `${dest}/util/MessageCacheManager.java`;
+  let s = fs.readFileSync(p, "utf8");
+  s = mustReplace(
+    s,
+    "    private final java.util.concurrent.ExecutorService diskExecutor =\n            java.util.concurrent.Executors.newSingleThreadExecutor();",
+    "    private final java.util.concurrent.ExecutorService diskExecutor =\n" +
+    "            new java.util.concurrent.ThreadPoolExecutor(\n" +
+    "                    1,\n" +
+    "                    1,\n" +
+    "                    0L,\n" +
+    "                    java.util.concurrent.TimeUnit.MILLISECONDS,\n" +
+    "                    new java.util.concurrent.LinkedBlockingQueue<>(),\n" +
+    "                    new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());\n\n" +
+    "    public void shutdown() {\n" +
+    "        diskExecutor.shutdown();\n" +
+    "    }",
+    "MessageCacheManager.diskExecutor"
+  );
+  fs.writeFileSync(p, s);
+}
+
+// 5. Adapt MainActivity into a ContextThemeWrapper-backed host for Aliucord FragmentProxy
 {
   const p = `${dest}/MainActivity.java`;
   let s = fs.readFileSync(p, "utf8");
 
-  s = s.replace(
+  s = mustReplace(
+    s,
     "public class MainActivity extends Activity {",
     "public class MainActivity extends android.view.ContextThemeWrapper {\n" +
     "    private final Activity hostActivity;\n" +
@@ -100,24 +170,64 @@ for (const rel of ["api/ApiClient.java", "api/GatewayClient.java", "util/Android
     "        java.io.File dir = new java.io.File(super.getCacheDir(), \"aegires\");\n" +
     "        if (!dir.exists()) dir.mkdirs();\n" +
     "        return dir;\n" +
-    "    }\n"
+    "    }\n" +
+    "    @Override\n" +
+    "    public java.io.FileOutputStream openFileOutput(String name, int mode) throws java.io.FileNotFoundException {\n" +
+    "        return new java.io.FileOutputStream(new java.io.File(getFilesDir(), name), (mode & MODE_APPEND) != 0);\n" +
+    "    }\n",
+    "MainActivity.classDecl"
   );
 
-  // Convert Activity lifecycle overrides to public host methods
-  s = s.replace("@Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        setTheme(android.R.style.Theme_DeviceDefault_NoActionBar);",
-                "public void onCreate(Bundle savedInstanceState) {");
-  s = s.replace("        setContentView(rootFrame);\n", "");
-  s = s.replace("@Override\n    public void onBackPressed() {", "public boolean handleBackPressed() {");
-  s = s.replace("if (fullscreenOverlay != null) {\n            hideFullscreen();\n            return;\n        }\n        goBack();",
-                "if (fullscreenOverlay != null) {\n            hideFullscreen();\n            return true;\n        }\n        if (screenStack.size() > 1) {\n            goBack();\n            return true;\n        }\n        return false;");
-  s = s.replace("@Override\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {\n        super.onActivityResult(requestCode, resultCode, data);",
-                "public void onActivityResult(int requestCode, int resultCode, Intent data) {");
-  s = s.replace("@Override\n    protected void onResume() {\n        super.onResume();",
-                "public void onResume() {");
-  s = s.replace("@Override\n    protected void onPause() {\n        super.onPause();",
-                "public void onPause() {");
-  s = s.replace("@Override\n    protected void onDestroy() {\n        if (gateway != null) gateway.shutdown();\n        if (apiClient != null) apiClient.shutdown();\n        super.onDestroy();\n    }",
-                "public void onDestroy() {\n        if (fullscreenOverlay != null) hideFullscreen();\n        while (!screenStack.isEmpty()) {\n            Screen sc = screenStack.pop();\n            try { sc.onPause(); } catch (Exception ignored) {}\n            try { sc.onDestroy(); } catch (Exception ignored) {}\n        }\n        if (gateway != null) gateway.shutdown();\n        if (apiClient != null) apiClient.shutdown();\n    }");
+  s = mustReplace(
+    s,
+    "@Override\n    protected void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        setTheme(android.R.style.Theme_DeviceDefault_NoActionBar);",
+    "public void onCreate(Bundle savedInstanceState) {",
+    "MainActivity.onCreate"
+  );
+  s = mustReplace(s, "        setContentView(rootFrame);\n", "", "MainActivity.setContentView");
+  s = mustReplace(s, "@Override\n    public void onBackPressed() {", "public boolean handleBackPressed() {", "MainActivity.onBackPressed");
+  s = mustReplace(
+    s,
+    "if (fullscreenOverlay != null) {\n            hideFullscreen();\n            return;\n        }\n        goBack();",
+    "if (fullscreenOverlay != null) {\n            hideFullscreen();\n            return true;\n        }\n        if (screenStack.size() > 1) {\n            goBack();\n            return true;\n        }\n        return false;",
+    "MainActivity.handleBackPressedBody"
+  );
+  s = mustReplace(
+    s,
+    "@Override\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {\n        super.onActivityResult(requestCode, resultCode, data);",
+    "public void onActivityResult(int requestCode, int resultCode, Intent data) {",
+    "MainActivity.onActivityResult"
+  );
+  s = mustReplace(
+    s,
+    "@Override\n    protected void onResume() {\n        super.onResume();",
+    "public void onResume() {",
+    "MainActivity.onResume"
+  );
+  s = mustReplace(
+    s,
+    "@Override\n    protected void onPause() {\n        super.onPause();",
+    "public void onPause() {",
+    "MainActivity.onPause"
+  );
+  s = mustReplace(
+    s,
+    "@Override\n    protected void onDestroy() {\n        if (gateway != null) gateway.shutdown();\n        if (apiClient != null) apiClient.shutdown();\n        super.onDestroy();\n    }",
+    "public void onDestroy() {\n" +
+    "        if (fullscreenOverlay != null) hideFullscreen();\n" +
+    "        while (!screenStack.isEmpty()) {\n" +
+    "            Screen sc = screenStack.pop();\n" +
+    "            try { sc.onPause(); } catch (Exception ignored) {}\n" +
+    "            try { sc.onDestroy(); } catch (Exception ignored) {}\n" +
+    "        }\n" +
+    "        if (gateway != null) gateway.shutdown();\n" +
+    "        if (apiClient != null) apiClient.shutdown();\n" +
+    "        if (diskCache != null) diskCache.shutdown();\n" +
+    "        if (messageCache != null) messageCache.shutdown();\n" +
+    "        handler.removeCallbacksAndMessages(null);\n" +
+    "    }",
+    "MainActivity.onDestroy"
+  );
 
   fs.writeFileSync(p, s);
 }

@@ -79,6 +79,10 @@ public class MainActivity extends android.view.ContextThemeWrapper {
         if (!dir.exists()) dir.mkdirs();
         return dir;
     }
+    @Override
+    public java.io.FileOutputStream openFileOutput(String name, int mode) throws java.io.FileNotFoundException {
+        return new java.io.FileOutputStream(new java.io.File(getFilesDir(), name), (mode & MODE_APPEND) != 0);
+    }
 
     public FrameLayout rootFrame;
     public View fullscreenOverlay;
@@ -493,9 +497,11 @@ public class MainActivity extends android.view.ContextThemeWrapper {
             try { sc.onPause(); } catch (Exception ignored) {}
             try { sc.onDestroy(); } catch (Exception ignored) {}
         }
-        handler.removeCallbacksAndMessages(null);
         if (gateway != null) gateway.shutdown();
         if (apiClient != null) apiClient.shutdown();
+        if (diskCache != null) diskCache.shutdown();
+        if (messageCache != null) messageCache.shutdown();
+        handler.removeCallbacksAndMessages(null);
     }
 
     public void toast(String msg) {

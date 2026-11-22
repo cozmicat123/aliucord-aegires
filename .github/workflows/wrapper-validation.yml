@@ -5,13 +5,13 @@ on:
   push:
     paths:
       - gradlew*
-      - gradle/gradle-wrapper.properties
-      - gradle/gradle-wrapper.jar
+      - gradle/wrapper/gradle-wrapper.properties
+      - gradle/wrapper/gradle-wrapper.jar
   pull_request:
     paths:
       - gradlew*
-      - gradle/gradle-wrapper.properties
-      - gradle/gradle-wrapper.jar
+      - gradle/wrapper/gradle-wrapper.properties
+      - gradle/wrapper/gradle-wrapper.jar
 
 jobs:
   validation:

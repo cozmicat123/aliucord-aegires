@@ -34,7 +34,18 @@ public final class DiskCache {
 
     private final File root;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final ExecutorService io =
+            new java.util.concurrent.ThreadPoolExecutor(
+                    1,
+                    1,
+                    0L,
+                    java.util.concurrent.TimeUnit.MILLISECONDS,
+                    new java.util.concurrent.LinkedBlockingQueue<>(),
+                    new java.util.concurrent.ThreadPoolExecutor.DiscardPolicy());
+
+    public void shutdown() {
+        io.shutdown();
+    }
     private volatile String account = "anon";
 
     public DiskCache(Context c) {
