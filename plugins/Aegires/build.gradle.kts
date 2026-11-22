@@ -1,11 +1,11 @@
-version = "0.1.0"
-description = "Run Aegires inside Aliucord (unrooted PoC)"
+version = "0.2.0"
+description = "Run Aegires inside Aliucord (unrooted)"
 
 aliucord {
     changelog.set(
         """
-        # 0.1.0-poc
-        - Milestone 1: full-screen launch PoC + shaded OkHttp 3.12.13 / Okio 1.17.5
+        # 0.2.0
+        - Milestone 2: full Aegires source sync, isolated storage, ContextThemeWrapper host + AegiresFragment
         """.trimIndent(),
     )
     deploy.set(false)

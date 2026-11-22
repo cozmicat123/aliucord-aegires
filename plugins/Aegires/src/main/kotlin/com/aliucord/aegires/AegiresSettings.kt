@@ -21,15 +21,15 @@ class AegiresSettings : SettingsPage() {
         ).apply { setMargins(pad, pad / 2, pad, pad / 2) }
 
         val info = TextView(ctx).apply {
-            text = "Milestone 1 PoC: launches full-screen proxy fragment + verifies shaded OkHttp 3.12.13 & RecyclerView."
+            text = "Run Aegires directly inside Aliucord (unrooted, isolated storage)."
             layoutParams = lp()
         }
 
         val launchBtn = Button(ctx).apply {
-            text = "Launch Aegires (PoC)"
+            text = "Launch Aegires"
             layoutParams = lp()
             setOnClickListener {
-                Utils.openPageWithProxy(ctx, AegiresPoCFragment())
+                Utils.openPageWithProxy(ctx, AegiresFragment())
             }
         }
 
