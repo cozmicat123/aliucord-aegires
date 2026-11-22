@@ -1,6 +1,6 @@
 package com.aliucord.aegires
 
-import a.b.util.TokenStore
+import android.content.Context
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -65,7 +65,11 @@ class AegiresSettings(private val prefs: SettingsAPI) : SettingsPage() {
             text = "Clear Aegires saved token"
             layoutParams = lp()
             setOnClickListener {
-                TokenStore.clear(ctx)
+                ctx.applicationContext
+                    .getSharedPreferences("aegires_auth", Context.MODE_PRIVATE)
+                    .edit()
+                    .remove("token")
+                    .commit()
                 Utils.showToast("Aegires saved token cleared")
             }
         }
