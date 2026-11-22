@@ -1,4 +1,4 @@
-version = "0.1.0-poc"
+version = "0.1.0"
 description = "Run Aegires inside Aliucord (unrooted PoC)"
 
 aliucord {
