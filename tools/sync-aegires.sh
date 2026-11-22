@@ -70,6 +70,7 @@ for (const rel of ["api/ApiClient.java", "api/GatewayClient.java", "util/Android
     "    }\n\n" +
     "    public Activity getHostActivity() { return hostActivity; }\n" +
     "    public android.view.Window getWindow() { return hostActivity.getWindow(); }\n" +
+    "    public View getCurrentFocus() { return hostActivity.getCurrentFocus(); }\n" +
     "    public void runOnUiThread(Runnable action) { hostActivity.runOnUiThread(action); }\n" +
     "    public Intent getIntent() { return hostIntent; }\n" +
     "    public boolean isFinishing() { return hostActivity.isFinishing(); }\n" +

@@ -48,6 +48,7 @@ public class MainActivity extends android.view.ContextThemeWrapper {
 
     public Activity getHostActivity() { return hostActivity; }
     public android.view.Window getWindow() { return hostActivity.getWindow(); }
+    public View getCurrentFocus() { return hostActivity.getCurrentFocus(); }
     public void runOnUiThread(Runnable action) { hostActivity.runOnUiThread(action); }
     public Intent getIntent() { return hostIntent; }
     public boolean isFinishing() { return hostActivity.isFinishing(); }
