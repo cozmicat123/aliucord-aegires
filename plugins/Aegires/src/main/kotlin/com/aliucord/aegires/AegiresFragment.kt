@@ -11,9 +11,12 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
+import com.discord.utilities.rest.RestAPI
 import java.util.UUID
 
-class AegiresFragment : Fragment() {
+class AegiresFragment(
+    private val autoTokenHandoff: Boolean = true,
+) : Fragment() {
     private var aegiresHost: MainActivity? = null
     private var resultLauncher: ActivityResultLauncher<Intent>? = null
     private var pendingRequestCode: Int = -1
@@ -60,7 +63,17 @@ class AegiresFragment : Fragment() {
             }
         }
 
-        val host = MainActivity(act, this, Intent())
+        val launchIntent = Intent()
+        if (autoTokenHandoff) {
+            val token = runCatching {
+                RestAPI.AppHeadersProvider.INSTANCE.getAuthToken()
+            }.getOrNull()
+            if (!token.isNullOrBlank()) {
+                launchIntent.putExtra("DISCORD_TOKEN", token)
+            }
+        }
+
+        val host = MainActivity(act, this, launchIntent)
         host.setActivityResultLauncher { intent, requestCode ->
             val launcher = resultLauncher
             if (launcher != null) {
