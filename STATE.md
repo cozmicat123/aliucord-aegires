@@ -1,24 +1,30 @@
 # STATE.md: shared memory. Read first on "start".
-Next: Phase 0 Research — inspect `~/Aegires/app/build.gradle`, `~/Aegires/build.gradle`, Aegires source tree (`AegiresApplication`, `MainActivity`, resources, deps), `~/vc-work/aliucord-e2ee`, and upstream `Aliucord/Aliucord` plugin loader source. Do NOT pick an architecture or write code yet.
+Next: Milestone 3 — add automatic Discord token handoff from Aliucord to Aegires (`DISCORD_TOKEN` intent extra, already supported by `MainActivity.java:110`), add a clean entrypoint inside Aliucord UI, polish settings/UX, verify on-device, and merge `dev` -> `main`.
 
 ## Setup
 - Repo: `~/vc-work/aliucord-aegires` (branch `dev`) = `github.com/cozmicat123/aliucord-aegires`
 - Handoff folder: `/sdcard/Download/aliucord-aegires/{AGENTS.md,STATE.md}`
 - Device: OnePlus 12 (`waffle`), YAAP vanilla (no GApps), Termux only (no PC).
-- Hard Constraint: **Strictly non-root only** (no `su`, Zygisk, or LSPosed; abort only if exhaustive research proves unrooted unviable).
-- Local references: `~/Aegires` (gen3), `~/vc-work/aliucord-e2ee`.
-- Upstream references: `Aliucord/Aliucord`, `Aliucord/gradle-plugin`, `Aliucord/plugins-template`.
+- Hard Constraint: **Strictly non-root only** (no `su`, Zygisk, or LSPosed).
+- Local references: `~/Aegires` (`gen3`, `f44d575`, includes latest upstream `Curione23/Aegires` `dddead0`), `~/vc-work/aliucord-e2ee` (`aegires-sync`).
 
-## Verified Facts (Phase 0 Started)
-- `~/Aegires` build files within depth 3: `./build.gradle`, `./app/build.gradle`. No `.so` files or `CMakeLists.txt` found within depth 3.
-- `~/Aegires/app/src/main/AndroidManifest.xml`:
-  - Permission: `android.permission.INTERNET` only.
-  - `<application>`: `.AegiresApplication`, `theme="@android:style/Theme.DeviceDefault.NoActionBar"`, `allowBackup="false"`, `largeHeap="true"`.
-  - `<activity>`: single `.MainActivity` (`LAUNCHER`, `adjustResize`, handles configChanges).
-  - Services / ContentProviders / BroadcastReceivers: none declared.
+## Locked Architecture (Phase 0 Complete — Verdict: GO, Unrooted)
+- **Method A + A1 + Sync Script:**
+  - Bundle Aegires Java sources inside Aliucord plugin `.zip` (`classes.dex`), synced from `~/Aegires` via `tools/sync-aegires.sh` (79 Java files; drops `AegiresApplication.java`).
+  - Launch full-screen inside Discord's registered `AppActivity` via `Utils.openPageWithProxy(ctx, AegiresFragment)`.
+  - `MainActivity` adapted into a `ContextThemeWrapper`-backed host delegating `getWindow`, `getCurrentFocus`, `runOnUiThread`, `finish`, `isFinishing`, `getIntent`, `ActivityResultLauncherDelegate`, and isolating prefs (`aegires_*`) + `filesDir`/`cacheDir` (`aegires/`). `LinkDialog.java` unwraps `ContextWrapper`.
+  - Shade pure-Java `okhttp:3.12.13` + `okio:1.17.5` to `aegires.okhttp3.*` / `aegires.okio.*` via `:shaded-okhttp` (`com.gradleup.shadow:9.6.1`).
 
-## Phase 0 Research Checklist (All Open)
-- [ ] Aegires full stack (Gradle deps, Kotlin/Java, Views vs Compose, resources, storage, lifecycle)
-- [ ] Aliucord host internals (upstream `Aliucord/Aliucord` plugin `.zip`/DEX/resources loader, ClassLoader behavior, Discord 126.21 dep conflicts, screen/Activity host APIs)
-- [ ] Unrooted Android 15/16 OS constraints & Android plugin-container prior art
-- [ ] Unrooted Go / No-Go + architecture decision with owner (only after checklist above is verified)
+## Verified Facts (Milestones 1 & 2)
+- **FragmentProxy quirks verified on-device:**
+  - `AegiresFragment.viewLifecycleOwner` throws `IllegalStateException` inside `FragmentProxy` -> register `OnBackPressedCallback` directly on `requireActivity().onBackPressedDispatcher` and remove in `onDestroyView()`.
+  - `FragmentProxy` does not forward `onActivityResult` -> route `MainActivity.startActivityForResult` through `ComponentActivity.activityResultRegistry.register(...)` and unregister in `onDestroyView()`.
+- **Milestone 2 On-Device Verified (`7a7fac4`, CI run `45014690105`, `Aegires v0.2.0`, `873 KB`):**
+  - Full Aegires UI, insets, login, guilds/channels/chat, back-press navigation + clean exit to Aliucord, `LinkDialog`, and attachment picker all verified working unrooted inside Aliucord.
+  - Note: Aliucord gradle-plugin requires strict `x.x.x` semver.
+
+## Milestones
+- [x] Phase 0: Deep Research Gate & Unrooted Architecture Decision
+- [x] Milestone 1: Gradle/CI scaffold + shaded OkHttp 3.12.13 + minimal full-screen Aegires launch PoC on-device
+- [x] Milestone 2: Full Aegires sync, storage isolation, back-press/inset/LinkDialog/attachment-picker verification
+- [ ] Milestone 3: Automatic token handoff, clean Aliucord UI entrypoint, polish, merge `dev` -> `main`

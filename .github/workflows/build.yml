@@ -1,0 +1,66 @@
+name: "Build"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+      - builds
+
+jobs:
+  build:
+    name: Build Plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check sync script syntax
+        run: bash -n tools/sync-aegires.sh
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew make :generateUpdaterJson
+
+      - name: Verify Shaded DEX & Manifest
+        run: |
+          ZIP=$(ls plugins/Aegires/build/outputs/*.zip | head -n 1)
+          echo "Built: $ZIP ($(stat -c%s "$ZIP") bytes)"
+          unzip -l "$ZIP"
+          mkdir -p /tmp/dexcheck && unzip -o "$ZIP" classes.dex manifest.json -d /tmp/dexcheck
+          cat /tmp/dexcheck/manifest.json
+          DEXDUMP=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name dexdump | sort -V | tail -n 1)
+          DUMP=$("$DEXDUMP" -f /tmp/dexcheck/classes.dex)
+          SHADED_OKHTTP=$(printf '%s\n' "$DUMP" | grep -c 'Laegires/okhttp3/' || true)
+          UNSHADED_OKHTTP=$(printf '%s\n' "$DUMP" | grep -c 'Lokhttp3/' || true)
+          SHADED_OKIO=$(printf '%s\n' "$DUMP" | grep -c 'Laegires/okio/' || true)
+          UNSHADED_OKIO=$(printf '%s\n' "$DUMP" | grep -c 'Lokio/' || true)
+          echo "okhttp3 shaded=$SHADED_OKHTTP unshaded=$UNSHADED_OKHTTP | okio shaded=$SHADED_OKIO unshaded=$UNSHADED_OKIO"
+          test "$SHADED_OKHTTP" -gt 0
+          test "$UNSHADED_OKHTTP" -eq 0
+          test "$SHADED_OKIO" -gt 0
+          test "$UNSHADED_OKIO" -eq 0
+          test -s build/outputs/updater.json
+
+      - name: Upload plugin artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugins
+          if-no-files-found: error
+          path: ${{ github.workspace }}/plugins/**/build/outputs/*.zip
