@@ -1,5 +1,5 @@
 # STATE.md: shared memory. Read first on "start".
-Next: Milestone 3 complete on `main` (`v0.3.2` deployed to `builds`). Optional follow-ups: harden `tools/sync-aegires.sh` (all-file OkHttp/Okio rewrite + strict assertions on `MainActivity.java` patches), save `pendingRequestCode` across process death in `AegiresFragment`, or sync upstream `Curione23/Aegires` changes as needed.
+Next: v0.3.2 live on `main` and `builds` branch. Ready for on-device test or next feature/sync.
 
 ## Setup
 - Repo: `~/vc-work/aliucord-aegires` (active dev branch `dev`, release branch `main`, artifact branch `builds`) = `github.com/cozmicat123/aliucord-aegires`
