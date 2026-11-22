@@ -53,9 +53,13 @@ public class MainActivity extends android.view.ContextThemeWrapper {
     public Intent getIntent() { return hostIntent; }
     public boolean isFinishing() { return hostActivity.isFinishing(); }
     public void finish() { hostActivity.finish(); }
+    public interface ActivityResultLauncherDelegate { void launch(Intent intent, int requestCode); }
+    private ActivityResultLauncherDelegate resultLauncher;
+    public void setActivityResultLauncher(ActivityResultLauncherDelegate d) { this.resultLauncher = d; }
     @SuppressWarnings("deprecation")
     public void startActivityForResult(Intent intent, int requestCode) {
-        hostFragment.startActivityForResult(intent, requestCode);
+        if (resultLauncher != null) resultLauncher.launch(intent, requestCode);
+        else hostFragment.startActivityForResult(intent, requestCode);
     }
     @Override
     public android.content.Context getApplicationContext() { return this; }

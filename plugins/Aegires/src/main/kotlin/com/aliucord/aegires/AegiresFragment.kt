@@ -6,11 +6,17 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
+import java.util.UUID
 
 class AegiresFragment : Fragment() {
     private var aegiresHost: MainActivity? = null
+    private var resultLauncher: ActivityResultLauncher<Intent>? = null
+    private var pendingRequestCode: Int = -1
     private var prevSoftInputMode: Int = 0
     private var prevStatusBarColor: Int = 0
     private var prevNavBarColor: Int = 0
@@ -40,7 +46,31 @@ class AegiresFragment : Fragment() {
             hasSavedWindowState = true
         }
 
+        if (act is ComponentActivity) {
+            val key = "aegires_picker_${UUID.randomUUID()}"
+            resultLauncher = act.activityResultRegistry.register(
+                key,
+                ActivityResultContracts.StartActivityForResult(),
+            ) { result ->
+                val code = pendingRequestCode
+                pendingRequestCode = -1
+                if (code >= 0) {
+                    aegiresHost?.onActivityResult(code, result.resultCode, result.data)
+                }
+            }
+        }
+
         val host = MainActivity(act, this, Intent())
+        host.setActivityResultLauncher { intent, requestCode ->
+            val launcher = resultLauncher
+            if (launcher != null) {
+                pendingRequestCode = requestCode
+                launcher.launch(intent)
+            } else {
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, requestCode)
+            }
+        }
         aegiresHost = host
         host.onCreate(savedInstanceState)
 
@@ -75,6 +105,8 @@ class AegiresFragment : Fragment() {
 
     override fun onDestroyView() {
         backCallback.remove()
+        resultLauncher?.unregister()
+        resultLauncher = null
         aegiresHost?.onDestroy()
         aegiresHost = null
         if (hasSavedWindowState) {

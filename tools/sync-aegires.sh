@@ -75,9 +75,13 @@ for (const rel of ["api/ApiClient.java", "api/GatewayClient.java", "util/Android
     "    public Intent getIntent() { return hostIntent; }\n" +
     "    public boolean isFinishing() { return hostActivity.isFinishing(); }\n" +
     "    public void finish() { hostActivity.finish(); }\n" +
+    "    public interface ActivityResultLauncherDelegate { void launch(Intent intent, int requestCode); }\n" +
+    "    private ActivityResultLauncherDelegate resultLauncher;\n" +
+    "    public void setActivityResultLauncher(ActivityResultLauncherDelegate d) { this.resultLauncher = d; }\n" +
     "    @SuppressWarnings(\"deprecation\")\n" +
     "    public void startActivityForResult(Intent intent, int requestCode) {\n" +
-    "        hostFragment.startActivityForResult(intent, requestCode);\n" +
+    "        if (resultLauncher != null) resultLauncher.launch(intent, requestCode);\n" +
+    "        else hostFragment.startActivityForResult(intent, requestCode);\n" +
     "    }\n" +
     "    @Override\n" +
     "    public android.content.Context getApplicationContext() { return this; }\n" +
