@@ -493,6 +493,7 @@ public class MainActivity extends android.view.ContextThemeWrapper {
             try { sc.onPause(); } catch (Exception ignored) {}
             try { sc.onDestroy(); } catch (Exception ignored) {}
         }
+        handler.removeCallbacksAndMessages(null);
         if (gateway != null) gateway.shutdown();
         if (apiClient != null) apiClient.shutdown();
     }

@@ -35,6 +35,7 @@ subprojects {
 
     configure<AliucordExtension> {
         author("Aegires", 0L, hyperlink = false)
+        github("https://github.com/cozmicat123/aliucord-aegires")
     }
 
     configure<KotlinAndroidExtension> {

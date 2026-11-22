@@ -10,13 +10,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import com.discord.utilities.rest.RestAPI
 import java.util.UUID
 
-class AegiresFragment(
-    private val autoTokenHandoff: Boolean = true,
-) : Fragment() {
+class AegiresFragment : Fragment() {
+    companion object {
+        private const val ARG_AUTO_TOKEN = "auto_token_handoff"
+
+        fun newInstance(autoTokenHandoff: Boolean = true): AegiresFragment =
+            AegiresFragment().apply {
+                arguments = Bundle().apply { putBoolean(ARG_AUTO_TOKEN, autoTokenHandoff) }
+            }
+    }
+
     private var aegiresHost: MainActivity? = null
     private var resultLauncher: ActivityResultLauncher<Intent>? = null
     private var pendingRequestCode: Int = -1
@@ -63,6 +71,7 @@ class AegiresFragment(
             }
         }
 
+        val autoTokenHandoff = arguments?.getBoolean(ARG_AUTO_TOKEN, true) ?: true
         val launchIntent = Intent()
         if (autoTokenHandoff) {
             val token = runCatching {
@@ -124,6 +133,7 @@ class AegiresFragment(
         aegiresHost = null
         if (hasSavedWindowState) {
             activity?.window?.let { w ->
+                WindowCompat.setDecorFitsSystemWindows(w, true)
                 w.setSoftInputMode(prevSoftInputMode)
                 w.statusBarColor = prevStatusBarColor
                 w.navigationBarColor = prevNavBarColor

@@ -33,7 +33,7 @@ class AegiresSettings(private val prefs: SettingsAPI) : SettingsPage() {
             layoutParams = lp()
             setOnClickListener {
                 val autoToken = prefs.getBool(AegiresPlugin.KEY_AUTO_TOKEN, true)
-                Utils.openPageWithProxy(ctx, AegiresFragment(autoToken))
+                Utils.openPageWithProxy(ctx, AegiresFragment.newInstance(autoToken))
             }
         }
 
@@ -69,7 +69,7 @@ class AegiresSettings(private val prefs: SettingsAPI) : SettingsPage() {
                     .getSharedPreferences("aegires_auth", Context.MODE_PRIVATE)
                     .edit()
                     .remove("token")
-                    .commit()
+                    .apply()
                 Utils.showToast("Aegires saved token cleared")
             }
         }
