@@ -54,7 +54,7 @@ class AegiresFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backCallback)
+        requireActivity().onBackPressedDispatcher.addCallback(backCallback)
     }
 
     override fun onResume() {
@@ -74,6 +74,7 @@ class AegiresFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        backCallback.remove()
         aegiresHost?.onDestroy()
         aegiresHost = null
         if (hasSavedWindowState) {
