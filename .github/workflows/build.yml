@@ -1,0 +1,51 @@
+name: "Build"
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  build:
+    name: Build Plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew make
+
+      - name: Verify Shaded DEX
+        run: |
+          ZIP=$(ls plugins/Aegires/build/outputs/*.zip | head -n 1)
+          echo "Built: $ZIP ($(stat -c%s "$ZIP") bytes)"
+          unzip -l "$ZIP"
+          mkdir -p /tmp/dexcheck && unzip -o "$ZIP" classes.dex -d /tmp/dexcheck
+          DEXDUMP=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name dexdump | sort -V | tail -n 1)
+          SHADED=$("$DEXDUMP" -f /tmp/dexcheck/classes.dex | grep -c 'Laegires/okhttp3/' || true)
+          UNSHADED=$("$DEXDUMP" -f /tmp/dexcheck/classes.dex | grep -c 'Lokhttp3/' || true)
+          echo "Shaded okhttp3 classes: $SHADED | Unshaded okhttp3 classes: $UNSHADED"
+          test "$SHADED" -gt 0
+          test "$UNSHADED" -eq 0
+
+      - name: Upload plugin artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugins
+          if-no-files-found: error
+          path: ${{ github.workspace }}/plugins/**/build/outputs/*.zip
